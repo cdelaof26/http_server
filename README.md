@@ -21,8 +21,13 @@ $ python3 main.py
 $ python main.py
 </pre>
 
+Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
 ### Historial
+
+#### v0.0.2
+- Ahora el usuario puede definir el puerto y cantidad de usuarios
+  permitidos
 
 #### v0.0.1
 - Programa inicial
