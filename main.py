@@ -1,4 +1,4 @@
-from util import utilidades
+from util import utilidades, config
 from typing import Optional
 import logging
 import socket
@@ -10,10 +10,10 @@ BUFFER_SIZE = 1024
 def setup_server(_host = None, _puerto = None, _usuarios = None) -> Optional[dict[str, any]]:
     try:
         if _host is None:
-            _host = "127.0.0.1"  # TODO: Puede que en otra versión el host pueda ser seleccionado...
+            _host = utilidades.seleccionar_ip("  Server Setup\nSelecciona la IP host")
 
         if _puerto is None:
-            _puerto = utilidades.obtener_puerto("  Server Setup\nIngresa el puerto")
+            _puerto = utilidades.obtener_puerto()
 
         if _usuarios is None:
             _usuarios = utilidades.obtener_numero_natural("Ingresa el número de usuarios máximos", 1)
@@ -47,6 +47,10 @@ def aceptar_peticiones(_datos: dict[str, any]):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    if not config.cargar_rutas():
+        logging.critical("  Ocurrió un error al procesar la linea anterior")
+        exit(1)
+
     # datos = setup_server("localhost", 80, 10)  # Debug
     datos = setup_server()
     if not datos:

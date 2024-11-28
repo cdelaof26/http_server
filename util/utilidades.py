@@ -1,21 +1,17 @@
 # Utilidades varias
 
+from util import net_utils, config
+from typing import Optional
 import subprocess
 import socket
 import re
 
 
 CANCELAR = "\n  Presiona enter para continuar y control + c para cancelar "
-try:
-    from os import uname
-    PLATAFORMA = uname()[0].lower()  # macOS: darwin
-except ImportError:
-    PLATAFORMA = "nt"
 
 
 def limpiar_pantalla():
-    global PLATAFORMA
-    subprocess.call("cls" if PLATAFORMA == "nt" else "clear")
+    subprocess.call("cls" if config.PLATAFORMA == "nt" else "clear")
 
 
 def validar_puerto(puerto: int) -> str:
@@ -33,6 +29,32 @@ def validar_puerto(puerto: int) -> str:
         return f"El puerto {puerto} ya esta en uso"
     finally:
         _socket.close()
+
+
+def seleccionar(opciones: list[str], valores: Optional[list] = None):
+    seleccion = ""
+    while not seleccion:
+        seleccion = input("> ").upper()
+        if seleccion not in opciones:
+            input(f"El valor ingresado no es válido {CANCELAR}")
+            seleccion = ""
+
+    if valores is not None:
+        return valores[opciones.index(seleccion)]
+    return seleccion
+
+
+def seleccionar_ip(info: str = "Selecciona la IP host") -> str:
+    ip = net_utils.obtener_ip()
+    opciones = []
+
+    print(info)
+    for _, _ip in zip(range(len(ip)), ip):
+        op = f"{_ + 1}"
+        print(f"{op}. {_ip}")
+        opciones.append(op)
+
+    return seleccionar(opciones, ip)
 
 
 def obtener_puerto(info: str = "Ingresa el puerto") -> int:

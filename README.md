@@ -23,7 +23,12 @@ $ python main.py
 
 Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
-### Historial
+### Historial de versiones
+
+#### v0.0.3
+- Ahora el usuario puede seleccionar la IP host del servidor
+- El usuario puede definir las rutas del servidor y que métodos
+  HTTP están permitidos en la ruta **[WIP]**
 
 #### v0.0.2
 - Ahora el usuario puede definir el puerto y cantidad de usuarios
