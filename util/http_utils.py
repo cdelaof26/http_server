@@ -56,6 +56,9 @@ class HTTPRequestData(Enum):
     PROTOCOL = 3
     QUERY = 4
     PATH = 5
+    HEADERS = 6
+    BODY = 7
+    ERROR = 8
 
 
 def separar_mensaje(solicitud: str) -> tuple[str, str]:
@@ -82,6 +85,7 @@ def separar_query_params(request: dict):
     if question_marks > 1 or question_marks == 0 and ("&" in uri or "=" in uri):
         # No puede haber más de un '?' o algún '&'/'=' y no '?'
         request[HTTPRequestData.STATUS] = HTTPStatusCode.c400
+        request[HTTPRequestData.ERROR] = "Malformed query"
         return
 
     ruta, _query_params = uri.split("?")
@@ -91,6 +95,7 @@ def separar_query_params(request: dict):
     for query in _query_params.split("&"):
         if query.count("=") != 1:
             request[HTTPRequestData.STATUS] = HTTPStatusCode.c400
+            request[HTTPRequestData.ERROR] = "Malformed query"
             return
         key, valor = query.split("=")
         query_params[key] = valor
@@ -108,17 +113,24 @@ def procesar_request_line(request_line: str) -> dict:
     datos = dict()
     if request_line.count(" ") != 2:
         datos[HTTPRequestData.STATUS] = HTTPStatusCode.c400
+        datos[HTTPRequestData.ERROR] = "Malformed request line"
         return datos
 
     metodo, uri, protocolo = request_line.split(" ")
     try:
         _ = HTTPMethod[metodo]
-        metodo_valido = True
+        metodo_invalido = False
     except KeyError:
-        metodo_valido = False
+        metodo_invalido = True
+    no_es_http11 = protocolo != "HTTP/1.1"
+    uri_invalida = not uri_valida(uri)
 
-    if not metodo_valido or protocolo != "HTTP/1.1" or not uri_valida(uri):
-        datos[HTTPRequestData.STATUS] = HTTPStatusCode.c400
+    if metodo_invalido or no_es_http11 or uri_invalida:
+        datos[HTTPRequestData.STATUS] = HTTPStatusCode.c501 if metodo_invalido \
+            else HTTPStatusCode.c400 if no_es_http11 else HTTPStatusCode.c404
+        datos[HTTPRequestData.ERROR] = "Method not implemented" if metodo_invalido \
+            else "Unsupported protocol" if no_es_http11 else "Resource not found"
+
         return datos
 
     datos[HTTPRequestData.STATUS] = HTTPStatusCode.c200
@@ -129,9 +141,46 @@ def procesar_request_line(request_line: str) -> dict:
     return datos
 
 
+def parse_headers(str_headers: str, response: dict):
+    headers = dict()
+
+    # Para simplificar la implementación, solo se soporta un Content-Type por solicitud
+    boundary = ""
+    lineas = str_headers.split("\r\n")
+    while "" in lineas:
+        lineas.remove("")
+
+    i = 0
+
+    for i, linea in enumerate(lineas):
+        if linea == boundary:
+            break
+
+        if "boundary" in linea:
+            boundary = re.findall(r"-+\d+", linea)[0]
+            linea = linea.replace(f"; boundary={boundary}", "")
+
+        key, valor = linea.split(": ")
+        if key == "Content-Type" and key in headers:
+            response[HTTPRequestData.STATUS] = HTTPStatusCode.c400
+            response[HTTPRequestData.ERROR] = "Redefinition of Content-Type is not allowed"
+
+        headers[key] = valor
+        if key == "Content-Length":
+            break
+
+    i += 1
+    if "Content-Length" in headers:
+        body = "\n".join(lineas[i:])
+        response[HTTPRequestData.BODY] = re.sub(boundary, "", body) if boundary else body
+
+    response[HTTPRequestData.HEADERS] = headers
+
+
 def procesar_solicitud(solicitud: str) -> dict:
     request_line, headers = separar_mensaje(solicitud)
     response = procesar_request_line(request_line)
     separar_query_params(response)
+    parse_headers(headers, response)
 
     return response

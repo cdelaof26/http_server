@@ -25,6 +25,16 @@ Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
 ### Historial de versiones
 
+#### v0.0.5
+- Preprocesamiento de la petición _terminada_
+  - Se hace conversión del mensaje completo a UTF-8
+  - Es posible seguir procesando el cuerpo de la solicitud
+  - No se valida el tamaño del cuerpo con lo reportado por el 
+    cliente
+  - No se realizan validaciones para algunos campos como `Accept`
+  - No se permiten multiples campos `Content-Type`
+    - No se verifica la duplicidad de distintos headers
+
 #### v0.0.4
 - Se realiza un procesamiento preliminar de la petición,
   de detectarse algún error en la petición se devuelve un código
