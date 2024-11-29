@@ -25,8 +25,14 @@ Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
 ### Historial de versiones
 
+### v0.0.7
+- Implementación multithreading simple para atender múltiples 
+  clientes
+
 #### v0.0.6
 - Generación de respuestas
+  - Las respuestas solo son HTML, independientemente de que 
+    acepta el cliente
 
 #### v0.0.5
 - Preprocesamiento de la petición _terminada_

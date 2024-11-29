@@ -1,5 +1,6 @@
 from util import utilidades, config, http_utils
 from typing import Optional
+import threading
 import logging
 import socket
 
@@ -31,13 +32,12 @@ def setup_server(_host = None, _puerto = None, _usuarios = None) -> Optional[dic
     return {"host": _host, "puerto": _puerto, "usuarios": _usuarios, "socket": _server_socket}
 
 
-def aceptar_peticiones(_datos: dict[str, any]):
-    global BUFFER_SIZE
-    server_socket: socket.socket = _datos["socket"]
+def manejar_peticion(cliente: socket.socket, ip_puerto: tuple):
+    logging.info(f"Se ha conectado el cliente {ip_puerto}")
 
+    _solicitud = None
     while True:
-        cliente, ip_puerto = server_socket.accept()
-        logging.info(f"Se ha conectado el cliente {ip_puerto}")
+        error_response = False
 
         try:
             # Parece que no se recomienda utilizar Unicode (UTF-8)
@@ -46,19 +46,42 @@ def aceptar_peticiones(_datos: dict[str, any]):
             _solicitud = cliente.recv(BUFFER_SIZE).decode()
         except UnicodeError:
             # Es posible que el usuario envie un archivo binario que no pueda decodificado como UTF-8
-            cliente.close()
-            continue
+            logging.error("Se produjo un error de codificación (UnicodeError)")
+            error_response = True
 
-        solicitud = http_utils.procesar_solicitud(_solicitud)
+        solicitud = http_utils.procesar_solicitud(_solicitud) if not error_response \
+            else http_utils.INTERNAL_ERROR
+
         respuesta = http_utils.crear_respuesta(solicitud)
 
         logging.info(f"Petición recibida: {_solicitud}")
-        logging.info(f"Petición procesada: {solicitud}")
+        logging.info(f"Petición procesada: {utilidades.presentar_dict(solicitud)}")
         logging.info(f"Respuesta: {respuesta}")
 
         cliente.send(respuesta.encode())
 
-        cliente.close()
+        if http_utils.estado_de_conexion(solicitud) == http_utils.HTTPConnection.CLOSE or True:
+            cliente.close()
+            break
+
+
+def aceptar_peticiones(_datos: dict[str, any]):
+    global BUFFER_SIZE
+    server_socket: socket.socket = _datos["socket"]
+    clientes = []
+
+    while True:
+        i = 0
+        while i < len(clientes):
+            if not clientes[i].is_alive():
+                clientes.pop(i)
+                continue
+            i += 1
+
+        cliente, ip_puerto = server_socket.accept()
+        t = threading.Thread(target=manejar_peticion, args=(cliente, ip_puerto))
+        t.start()
+        clientes.append(t)
 
 
 if __name__ == "__main__":

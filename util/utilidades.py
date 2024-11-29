@@ -100,3 +100,34 @@ def obtener_numero_natural(info: str, limite_inferior: int = 0, limite_superior:
         input(f"Dato fuera del rango [{limite_inferior}, {limite_superior if limite_superior != -1 else 'inf'}] "
               f"{CANCELAR}")
         _numero = ""
+
+
+def presentar_dict(datos: dict) -> str:
+    _datos = str(datos)
+    for f in re.findall(r"\W, ", _datos):
+        _datos = re.sub(f, f.replace(" ", "\n"), _datos, 1)
+
+    _datos = _datos.replace("{", "{\n")
+    _datos = _datos.replace("}", "\n}")
+    _dict = ""
+    _indent = "    "
+    indent = 0
+    for linea in _datos.split("\n"):
+        if linea == "{":
+            indent += 1
+            _dict += linea + "\n"
+            continue
+
+        if linea == "}":
+            indent -= 1
+            _dict += f"{_indent * indent}{linea}\n"
+            continue
+
+        if ": {" in linea:
+            _dict += f"{_indent * indent}{linea}\n"
+            indent += 1
+            continue
+
+        _dict += f"{_indent * indent}{linea}\n"
+
+    return _dict

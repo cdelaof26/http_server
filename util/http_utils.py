@@ -70,6 +70,13 @@ class HTTPRequestData(Enum):
     ERROR = 8
 
 
+class HTTPConnection(Enum):
+    # Puede tomar más valores como 'upgrade', 'HTTP/X', 'no-transform', 'no-cache' o 'no-store'
+    # Pero no se implementan
+    KEEP_ALIVE = 0
+    CLOSE = 1
+
+
 def separar_mensaje(solicitud: str) -> tuple[str, str]:
     request_line = re.sub(r"\r\n[\w\W]+", "", solicitud)
     headers = solicitud.replace(request_line, "")
@@ -241,6 +248,12 @@ def verificar_ruta(solicitud: dict):
         solicitud[HTTPRequestData.ERROR] = "Method not implemented"
 
 
+INTERNAL_ERROR = {
+    HTTPRequestData.STATUS: HTTPStatusCode.c500,
+    HTTPRequestData.ERROR: "An internal error occurred while processing the request"
+}
+
+
 def crear_respuesta(solicitud: dict) -> str:
     verificar_ruta(solicitud)
 
@@ -260,5 +273,20 @@ def crear_respuesta(solicitud: dict) -> str:
     # Por alguna razón Postman tiene problemas procesando la respuesta con Content-Length
     # respuesta += f"Content-Length: {len(cuerpo)}\r\n\r\n"
     respuesta += cuerpo
+    # HTML es una posible respuesta, pero con la única con la que se responde
+    # independientemente del MIME (Accept) que indica el cliente; TODO: Implementar
 
     return respuesta
+
+
+def estado_de_conexion(solicitud: dict) -> HTTPConnection:
+    # Por defecto se cierra la conexión si no existen los headers
+    if HTTPRequestData.HEADERS not in solicitud:
+        return HTTPConnection.CLOSE
+
+    headers = solicitud[HTTPRequestData.HEADERS]
+    conexion: str = headers["Connection"].replace("-", "_").upper()
+    try:
+        return HTTPConnection[conexion]
+    except KeyError:
+        return HTTPConnection.CLOSE
