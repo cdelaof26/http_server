@@ -1,13 +1,22 @@
+from util.config import HTTPMethod, ROUTES
+from datetime import datetime
 from enum import Enum
 import re
 
 
-class HTTPMethod(Enum):
-    GET = 1
-    POST = 2
-    PUT = 3
-    PATCH = 4
-    DELETE = 5
+PAGE_TITLE = "PAGE_TITLE"
+BODY_DATA = "BODY_DATA"
+BASE_HTML = f"""<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{PAGE_TITLE}</title>
+</head>
+<body>
+{BODY_DATA}
+</body>
+</html>
+"""
 
 
 class HTTPStatusCode(Enum):
@@ -40,7 +49,7 @@ class _HTTPStatusMessage(Enum):
     FOUND = 9
 
 
-def status_code_to_status_message(code: HTTPStatusCode) -> str:
+def status_code_as_msg(code: HTTPStatusCode) -> str:
     mensaje = _HTTPStatusMessage(code.value).name
     if "_" not in mensaje:
         return mensaje
@@ -117,8 +126,9 @@ def procesar_request_line(request_line: str) -> dict:
         return datos
 
     metodo, uri, protocolo = request_line.split(" ")
+    m = None
     try:
-        _ = HTTPMethod[metodo]
+        m = HTTPMethod[metodo]
         metodo_invalido = False
     except KeyError:
         metodo_invalido = True
@@ -134,7 +144,7 @@ def procesar_request_line(request_line: str) -> dict:
         return datos
 
     datos[HTTPRequestData.STATUS] = HTTPStatusCode.c200
-    datos[HTTPRequestData.METHOD] = metodo
+    datos[HTTPRequestData.METHOD] = m
     datos[HTTPRequestData.URI] = uri
     datos[HTTPRequestData.PROTOCOL] = protocolo
 
@@ -146,6 +156,7 @@ def parse_headers(str_headers: str, response: dict):
 
     # Para simplificar la implementación, solo se soporta un Content-Type por solicitud
     boundary = ""
+    str_headers = str_headers.replace("\r\n\r\n", "\r\n--data--\r\n", 1)
     lineas = str_headers.split("\r\n")
     while "" in lineas:
         lineas.remove("")
@@ -153,26 +164,25 @@ def parse_headers(str_headers: str, response: dict):
     i = 0
 
     for i, linea in enumerate(lineas):
-        if linea == boundary:
+        if linea == boundary or linea == "--data--":
             break
 
-        if "boundary" in linea:
+        if "boundary=--" in linea:
             boundary = re.findall(r"-+\d+", linea)[0]
             linea = linea.replace(f"; boundary={boundary}", "")
+            boundary = re.sub("-+", "", boundary)
 
         key, valor = linea.split(": ")
         if key == "Content-Type" and key in headers:
             response[HTTPRequestData.STATUS] = HTTPStatusCode.c400
-            response[HTTPRequestData.ERROR] = "Redefinition of Content-Type is not allowed"
+            response[HTTPRequestData.ERROR] = "Multiple definitions of Content-Type are not allowed"
 
         headers[key] = valor
-        if key == "Content-Length":
-            break
 
     i += 1
     if "Content-Length" in headers:
         body = "\n".join(lineas[i:])
-        response[HTTPRequestData.BODY] = re.sub(boundary, "", body) if boundary else body
+        response[HTTPRequestData.BODY] = re.sub("-+" + boundary + "-?-?", "", body) if boundary else body
 
     response[HTTPRequestData.HEADERS] = headers
 
@@ -184,3 +194,71 @@ def procesar_solicitud(solicitud: str) -> dict:
     parse_headers(headers, response)
 
     return response
+
+
+def obtener_fecha() -> str:
+    return datetime.now().strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+
+def generar_html(status: str, solicitud: dict) -> str:
+    global BASE_HTML, PAGE_TITLE, BODY_DATA
+
+    html = BASE_HTML
+    html = re.sub(PAGE_TITLE, "Error" if status != "200" else "Página", html)
+
+    titulo = solicitud[HTTPRequestData.ERROR] if HTTPRequestData.ERROR in solicitud else "Hola Mundo"
+    cuerpo = f"<h1>{titulo} - {status} {'OK' if status == HTTPStatusCode.c200 else ''}</h1>\n"
+
+    if HTTPRequestData.PATH in solicitud:
+        cuerpo += f"<b><p>Página para la ruta {solicitud[HTTPRequestData.PATH]}</p></b>\n"
+    if HTTPRequestData.METHOD in solicitud:
+        cuerpo += f"<p>Método: {solicitud[HTTPRequestData.METHOD].name}</p>\n"
+    if HTTPRequestData.QUERY in solicitud:
+        cuerpo += f"<p>Datos de query: {solicitud[HTTPRequestData.QUERY]}</p>\n"
+    if HTTPRequestData.BODY in solicitud:
+        cuerpo += f"<p>Body: {solicitud[HTTPRequestData.BODY]}</p>\n"
+
+    return re.sub(BODY_DATA, cuerpo, html)
+
+
+def verificar_ruta(solicitud: dict):
+    if solicitud[HTTPRequestData.STATUS] != HTTPStatusCode.c200 or HTTPRequestData.PATH not in solicitud:
+        return
+
+    ruta: str = solicitud[HTTPRequestData.PATH]
+    if ruta[-1] != "/":
+        ruta += "/"
+
+    if ruta not in ROUTES:
+        ruta = ruta[:-1]
+        if ruta not in ROUTES:
+            solicitud[HTTPRequestData.STATUS] = HTTPStatusCode.c404
+            solicitud[HTTPRequestData.ERROR] = "Resource not found"
+            return
+
+    if solicitud[HTTPRequestData.METHOD] not in ROUTES[ruta]:
+        solicitud[HTTPRequestData.STATUS] = HTTPStatusCode.c501
+        solicitud[HTTPRequestData.ERROR] = "Method not implemented"
+
+
+def crear_respuesta(solicitud: dict) -> str:
+    verificar_ruta(solicitud)
+
+    respuesta = ""
+
+    estado = solicitud[HTTPRequestData.STATUS]
+    status = status_code_as_int(estado)
+    status_msg = status_code_as_msg(estado)
+
+    cuerpo = generar_html(status, solicitud)
+
+    respuesta += f"HTTP/1.1 {status} {status_msg}\r\n"
+    respuesta += f"Server: Python3 http_server\r\n"
+    respuesta += f"Date: {obtener_fecha()}\r\n"
+    respuesta += f"Content-type: text/html; charset=utf-8\r\n\r\n"
+
+    # Por alguna razón Postman tiene problemas procesando la respuesta con Content-Length
+    # respuesta += f"Content-Length: {len(cuerpo)}\r\n\r\n"
+    respuesta += cuerpo
+
+    return respuesta

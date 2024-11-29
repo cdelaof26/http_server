@@ -1,7 +1,7 @@
 # Utilidades para leer los archivos de configuración
 
-from util.http_utils import HTTPMethod
 from pathlib import Path
+from enum import Enum
 import logging
 import re
 
@@ -10,6 +10,16 @@ try:
     PLATAFORMA = uname()[0].lower()  # macOS: darwin
 except ImportError:
     PLATAFORMA = "nt"
+
+
+class HTTPMethod(Enum):
+    # Originalmente, debería estar en http_utils, pero para evitar referencias circulares paso a estar aquí
+    GET = 1
+    POST = 2
+    PUT = 3
+    PATCH = 4
+    DELETE = 5
+
 
 # El archivo de configuración, donde se definen que rutas existen y que métodos aceptan, tiene la siguiente estructura:
 #
@@ -66,10 +76,7 @@ def cargar_rutas() -> bool:
         ruta = linea.replace(_metodos, "")
         metodos = convertir_metodos(_metodos)
 
-        try:
-            assert ruta_valida(ruta)
-            assert len(metodos) != 0
-        except AssertionError:
+        if not ruta_valida(ruta) or len(metodos) == 0:
             return False
 
         ROUTES[ruta] = metodos

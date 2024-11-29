@@ -25,6 +25,9 @@ Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
 ### Historial de versiones
 
+#### v0.0.6
+- Generación de respuestas
+
 #### v0.0.5
 - Preprocesamiento de la petición _terminada_
   - Se hace conversión del mensaje completo a UTF-8

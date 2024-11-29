@@ -39,21 +39,24 @@ def aceptar_peticiones(_datos: dict[str, any]):
         cliente, ip_puerto = server_socket.accept()
         logging.info(f"Se ha conectado el cliente {ip_puerto}")
 
-        # Parece que no se recomienda utilizar Unicode (UTF-8)
-        # como interpretación por defecto para los mensajes en HTTP/1.1,
-        # pero manejar los mensajes como flujo de bytes complicaría las cosas...
-        _solicitud = cliente.recv(BUFFER_SIZE).decode()
-        respuesta = http_utils.procesar_solicitud(_solicitud)
+        try:
+            # Parece que no se recomienda utilizar Unicode (UTF-8)
+            # como interpretación por defecto para los mensajes en HTTP/1.1,
+            # pero manejar los mensajes como flujo de bytes complicaría las cosas...
+            _solicitud = cliente.recv(BUFFER_SIZE).decode()
+        except UnicodeError:
+            # Es posible que el usuario envie un archivo binario que no pueda decodificado como UTF-8
+            cliente.close()
+            continue
+
+        solicitud = http_utils.procesar_solicitud(_solicitud)
+        respuesta = http_utils.crear_respuesta(solicitud)
 
         logging.info(f"Petición recibida: {_solicitud}")
-        logging.info(f"Petición procesada: {respuesta}")
+        logging.info(f"Petición procesada: {solicitud}")
+        logging.info(f"Respuesta: {respuesta}")
 
-        estado = respuesta[http_utils.HTTPRequestData.STATUS]
-        _estado = http_utils.status_code_to_status_message(estado)
-        print(estado, _estado)
-
-        _respuesta = f"HTTP/1.1 {http_utils.status_code_as_int(estado)} {_estado}\r\n\r\nHola Mundo"
-        cliente.send(_respuesta.encode())
+        cliente.send(respuesta.encode())
 
         cliente.close()
 
