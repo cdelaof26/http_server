@@ -1,4 +1,4 @@
-from util import utilidades, config
+from util import utilidades, config, http_utils
 from typing import Optional
 import logging
 import socket
@@ -19,6 +19,9 @@ def setup_server(_host = None, _puerto = None, _usuarios = None) -> Optional[dic
             _usuarios = utilidades.obtener_numero_natural("Ingresa el número de usuarios máximos", 1)
     except KeyboardInterrupt:
         return None
+    except AssertionError:
+        logging.critical("Este programa requiere de 'ipconfig', 'ifconfig' o 'ip' instalado y configurado en PATH")
+        return None
 
     logging.info("Levantando servidor...")
     _server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,11 +39,21 @@ def aceptar_peticiones(_datos: dict[str, any]):
         cliente, ip_puerto = server_socket.accept()
         logging.info(f"Se ha conectado el cliente {ip_puerto}")
 
-        solicitud = cliente.recv(BUFFER_SIZE).decode()
-        logging.info(f"Petición recibida: {solicitud}")
+        # Parece que no se recomienda utilizar Unicode (UTF-8)
+        # como interpretación por defecto para los mensajes en HTTP/1.1,
+        # pero manejar los mensajes como flujo de bytes complicaría las cosas...
+        _solicitud = cliente.recv(BUFFER_SIZE).decode()
+        respuesta = http_utils.procesar_solicitud(_solicitud)
 
-        respuesta = "HTTP/1.1 200 OK\r\n\r\nHola Mundo"
-        cliente.send(respuesta.encode())
+        logging.info(f"Petición recibida: {_solicitud}")
+        logging.info(f"Petición procesada: {respuesta}")
+
+        estado = respuesta[http_utils.HTTPRequestData.STATUS]
+        _estado = http_utils.status_code_to_status_message(estado)
+        print(estado, _estado)
+
+        _respuesta = f"HTTP/1.1 {http_utils.status_code_as_int(estado)} {_estado}\r\n\r\nHola Mundo"
+        cliente.send(_respuesta.encode())
 
         cliente.close()
 

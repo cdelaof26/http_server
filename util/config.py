@@ -1,4 +1,4 @@
-# Utilidades para leer el archivo de configuración
+# Utilidades para leer los archivos de configuración
 
 from util.http_utils import HTTPMethod
 from pathlib import Path

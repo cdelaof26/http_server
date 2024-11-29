@@ -25,6 +25,11 @@ Para realizar pruebas se utilizó [Postman](https://www.postman.com/).
 
 ### Historial de versiones
 
+#### v0.0.4
+- Se realiza un procesamiento preliminar de la petición,
+  de detectarse algún error en la petición se devuelve un código
+  distinto a `200 OK`
+
 #### v0.0.3
 - Ahora el usuario puede seleccionar la IP host del servidor
 - El usuario puede definir las rutas del servidor y que métodos
